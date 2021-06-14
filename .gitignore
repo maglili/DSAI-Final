@@ -2,3 +2,6 @@ data/
 *.pickle
 *.pkl
 *.csv
+submission/
+ipynb/
+*.ipynb
