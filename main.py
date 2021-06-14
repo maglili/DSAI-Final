@@ -52,6 +52,7 @@ X_train_l2 = X_train_s[split_num:]
 Y_train_l2 = Y_train.loc[X_train_l2.index]
 print("level 1 training data:", split_num)
 print("level 2 training data:", len(X_train) - split_num)
+print()
 
 # l1m1
 ts = time.time()
@@ -73,6 +74,7 @@ model_1.fit(
     early_stopping_rounds=10,
 )
 print("\nl1m1 finished:", time.time() - ts)
+print()
 
 # l1m2
 ts = time.time()
@@ -94,6 +96,7 @@ model_2.fit(
     early_stopping_rounds=10,
 )
 print("\nl1m2 finished:", time.time() - ts)
+print()
 
 # l1m3
 ts = time.time()
@@ -115,6 +118,7 @@ model_3.fit(
     early_stopping_rounds=10,
 )
 print("\nl1m3 finished:", time.time() - ts)
+print()
 
 # l1m4
 ts = time.time()
@@ -136,6 +140,7 @@ model_4.fit(
     early_stopping_rounds=10,
 )
 print("\nl1m4 finished:", time.time() - ts)
+print()
 
 # l1m5
 ts = time.time()
@@ -200,7 +205,7 @@ validset = Data(X_val_l2_fea, Y_valid.values)
 # model
 model = NN(in_features=5, out_features=1)
 model.to(device)
-summary(model, input_size=(0, 5))
+print(model)
 
 # hypperparameter
 loss_fn = torch.nn.MSELoss()
@@ -209,7 +214,7 @@ bs = 4096
 train_loader = DataLoader(dataset=trainset, batch_size=bs, shuffle=True)
 val_loader = DataLoader(dataset=validset, batch_size=bs, shuffle=False)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-    optimiser, mode="min", factor=0.5, patience=3
+    optimiser, mode="min", factor=0.5, patience=2
 )
 num_epochs = 10
 

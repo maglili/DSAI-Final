@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
+from torchsummary import summary
 
 
 class Data(Dataset):
@@ -38,11 +39,12 @@ class NN(nn.Module):
     def __init__(self, in_features, out_features):
         super(NN, self).__init__()
 
+        self.dropout = nn.Dropout(p=0.4)
         self.fc = nn.Linear(in_features, out_features)
 
     def forward(self, x):
 
-        x = self.fc(x)
+        x = self.fc(self.dropout(x))
 
         return x.squeeze()
 
@@ -89,3 +91,19 @@ def training(
         )
 
     return train_loss_list, val_loss_list
+
+
+if __name__ == "__main__":
+
+    # device
+    if torch.cuda.is_available():
+        device = torch.device("cuda:0")
+        print("GPU is avalible")
+        print("Working on ", torch.cuda.get_device_name())
+    else:
+        device = torch.device("cpu")
+        print("GPU is not avalible")
+
+    model = NN(in_features=5, out_features=1)
+    model.to(device)
+    print(model)

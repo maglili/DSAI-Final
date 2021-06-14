@@ -1,34 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# 
-# This notebook is simpified version of the final project in the [How to Win a Data Science Competition: Learn from Top Kagglers](https://www.coursera.org/learn/competitive-data-science) course. Simplified means without ensembling.
-# 
-# #### Pipline
-# * load data
-# * heal data and remove outliers
-# * work with shops/items/cats objects and features
-# * create matrix as product of item/shop pairs within each month in the train set
-# * get monthly sales for each item/shop pair in the train set and merge it to the matrix
-# * clip item_cnt_month by (0,20)
-# * append test to the matrix, fill 34 month nans with zeros
-# * merge shops/items/cats to the matrix
-# * add target lag features
-# * add mean encoded features
-# * add price trend features
-# * add month
-# * add days
-# * add months since last sale/months since first sale features
-# * cut first year and drop columns which can not be calculated for the test set
-# * select best features
-# * set validation strategy 34 test, 33 validation, less than 33 train
-# * fit the model, predict and clip targets for the test set
-
-# # Part 1, perfect features
-
-# In[1]:
-
-
 import numpy as np
 import pandas as pd
 
@@ -41,16 +10,6 @@ from sklearn.preprocessing import LabelEncoder
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-get_ipython().run_line_magic('matplotlib', 'inline')
-
-from xgboost import XGBRegressor
-from xgboost import plot_importance
-
-
-def plot_features(booster, figsize):
-    fig, ax = plt.subplots(1, 1, figsize=figsize)
-    return plot_importance(booster=booster, ax=ax)
-
 
 import time
 import sys
@@ -60,12 +19,6 @@ import random
 
 random.seed(0)
 np.random.seed(0)
-
-sys.version_info
-
-
-# In[2]:
-
 
 items = pd.read_csv("./data/items.csv")
 shops = pd.read_csv("./data/shops.csv")
@@ -165,7 +118,7 @@ items.drop(["item_name"], axis=1, inplace=True)
 
 
 # ## Monthly sales
-# Test set is a product of some shops and some items within 34 month. There are 5100 items * 42 shops = 214200 pairs. 363 items are new compared to the train. Hence, for the most of the items in the test set target value should be zero. 
+# Test set is a product of some shops and some items within 34 month. There are 5100 items * 42 shops = 214200 pairs. 363 items are new compared to the train. Hence, for the most of the items in the test set target value should be zero.
 # In the other hand train set contains only pairs which were sold or returned in the past. Tha main idea is to calculate monthly sales and <b>extend it with zero sales</b> for each unique pair within the month. This way train data will be similar to test data.
 
 # In[15]:
@@ -236,7 +189,7 @@ matrix.head()
 
 
 # Aggregate train set by shop/item pairs to calculate target aggreagates, then <b>clip(0,20)</b> target value. This way train target will be similar to the test predictions.
-# 
+#
 # <i>I use floats instead of ints for item_cnt_month to avoid downcasting it after concatination with the test set later. If it would be int16, after concatination with NaN values it becomes int64, but foat16 becomes float16 even with NaNs.</i>
 
 # In[24]:
@@ -680,7 +633,7 @@ matrix["days"] = matrix["month"].map(days).astype(np.int8)
 
 
 # Months since the last sale for each shop/item pair and for item only. I use programing approach.
-# 
+#
 # <i>Create HashTable with key equals to {shop_id,item_id} and value equals to date_block_num. Iterate data from the top. Foreach row if {row.shop_id,row.item_id} is not present in the table, then add it to the table and set its value to row.date_block_num. if HashTable contains key, then calculate the difference beteween cached value and row.date_block_num.</i>
 
 # In[64]:
@@ -793,4 +746,3 @@ del cats
 del train
 # leave test for submission
 gc.collect()
-
