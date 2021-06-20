@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# # Part 1, perfect features
+
+
 import numpy as np
 import pandas as pd
 
@@ -10,6 +16,14 @@ from sklearn.preprocessing import LabelEncoder
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+from xgboost import XGBRegressor
+from xgboost import plot_importance
+
+
+def plot_features(booster, figsize):
+    fig, ax = plt.subplots(1, 1, figsize=figsize)
+    return plot_importance(booster=booster, ax=ax)
+
 
 import time
 import sys
@@ -20,48 +34,26 @@ import random
 random.seed(0)
 np.random.seed(0)
 
-items = pd.read_csv("./data/items.csv")
-shops = pd.read_csv("./data/shops.csv")
-cats = pd.read_csv("./data/item_categories.csv")
-train = pd.read_csv("./data/sales_train.csv")
+sys.version_info
+
+
+items = pd.read_csv("../input/items.csv")
+shops = pd.read_csv("../input/shops.csv")
+cats = pd.read_csv("../input/item_categories.csv")
+train = pd.read_csv("../input/sales_train.csv")
 # set index to ID to avoid droping it later
-test = pd.read_csv("./data/test.csv").set_index("ID")
+test = pd.read_csv("../input/test.csv").set_index("ID")
 
 
 # ## Outliers
 
 # There are items with strange prices and sales. After detailed exploration I decided to remove items with price > 100000 and sales > 1001 (1000 is ok).
 
-# In[5]:
-
-
-plt.figure(figsize=(10, 4))
-plt.xlim(-100, 3000)
-sns.boxplot(x=train.item_cnt_day)
-
-plt.figure(figsize=(10, 4))
-plt.xlim(train.item_price.min(), train.item_price.max() * 1.1)
-sns.boxplot(x=train.item_price)
-plt.show()
-
-
-# In[6]:
-
-
 train = train[train.item_price < 100000]
 train = train[train.item_cnt_day < 1001]
 
 
 # There is one item with price below zero. Fill it with median.
-
-# In[7]:
-
-
-train[train["item_price"] <= 0]
-
-
-# In[8]:
-
 
 median = train[
     (train.shop_id == 32)
@@ -74,7 +66,8 @@ train.loc[train.item_price < 0, "item_price"] = median
 
 # Several shops are duplicates of each other (according to its name). Fix train and test set.
 
-# In[9]:
+
+# shops[(shops.shop_id==10) | (shops.shop_id==11)]
 
 
 # Якутск Орджоникидзе, 56
@@ -92,8 +85,6 @@ test.loc[test.shop_id == 10, "shop_id"] = 11
 # Observations:
 # * Each shop_name starts with the city name.
 # * Each category contains type and subtype in its name.
-
-# In[11]:
 
 
 shops.loc[
@@ -121,47 +112,6 @@ items.drop(["item_name"], axis=1, inplace=True)
 # Test set is a product of some shops and some items within 34 month. There are 5100 items * 42 shops = 214200 pairs. 363 items are new compared to the train. Hence, for the most of the items in the test set target value should be zero.
 # In the other hand train set contains only pairs which were sold or returned in the past. Tha main idea is to calculate monthly sales and <b>extend it with zero sales</b> for each unique pair within the month. This way train data will be similar to test data.
 
-# In[15]:
-
-
-len(test.shop_id.unique())
-
-
-# In[16]:
-
-
-len(set(test.shop_id).intersection(set(train.shop_id)))
-
-
-# In[17]:
-
-
-len(test.item_id.unique())
-
-
-# In[18]:
-
-
-len(set(test.item_id).intersection(set(train.item_id)))
-
-
-# In[19]:
-
-
-len(list(set(test.item_id) - set(test.item_id).intersection(set(train.item_id)))), len(
-    list(set(test.item_id))
-), len(test)
-
-
-# In[21]:
-
-
-train[train.date_block_num == 0].head()
-
-
-# In[22]:
-
-
 ts = time.time()
 matrix = []
 cols = ["date_block_num", "shop_id", "item_id"]
@@ -179,34 +129,15 @@ matrix["date_block_num"] = matrix["date_block_num"].astype(np.int8)
 matrix["shop_id"] = matrix["shop_id"].astype(np.int8)
 matrix["item_id"] = matrix["item_id"].astype(np.int16)
 matrix.sort_values(cols, inplace=True)
-time.time() - ts
-
-
-# In[23]:
-
-
-matrix.head()
+print("time cost:", time.time() - ts)
 
 
 # Aggregate train set by shop/item pairs to calculate target aggreagates, then <b>clip(0,20)</b> target value. This way train target will be similar to the test predictions.
 #
 # <i>I use floats instead of ints for item_cnt_month to avoid downcasting it after concatination with the test set later. If it would be int16, after concatination with NaN values it becomes int64, but foat16 becomes float16 even with NaNs.</i>
 
-# In[24]:
-
 
 train["revenue"] = train["item_price"] * train["item_cnt_day"]
-
-
-# In[45]:
-
-
-train[
-    (train["date_block_num"] == 0) & (train["shop_id"] == 2) & (train["item_id"] == 19)
-]
-
-
-# In[25]:
 
 
 ts = time.time()
@@ -223,20 +154,11 @@ matrix["item_cnt_month"] = (
     .clip(0, 20)  # NB clip target here
     .astype(np.float16)
 )
-time.time() - ts
-
-
-# In[29]:
-
-
-matrix.head()
+print("time cost:", time.time() - ts)
 
 
 # ## Test set
 # To use time tricks append test pairs to the matrix.
-
-# In[30]:
-
 
 test["date_block_num"] = 34
 test["date_block_num"] = test["date_block_num"].astype(np.int8)
@@ -244,24 +166,13 @@ test["shop_id"] = test["shop_id"].astype(np.int8)
 test["item_id"] = test["item_id"].astype(np.int16)
 
 
-# In[31]:
-
-
 ts = time.time()
 matrix = pd.concat([matrix, test], ignore_index=True, sort=False, keys=cols)
 matrix.fillna(0, inplace=True)  # 34 month
-time.time() - ts
-
-
-# In[33]:
-
-
-matrix.tail()
+print("time cost:", time.time() - ts)
 
 
 # ## Shops/Items/Cats features
-
-# In[34]:
 
 
 ts = time.time()
@@ -272,27 +183,21 @@ matrix["city_code"] = matrix["city_code"].astype(np.int8)
 matrix["item_category_id"] = matrix["item_category_id"].astype(np.int8)
 matrix["type_code"] = matrix["type_code"].astype(np.int8)
 matrix["subtype_code"] = matrix["subtype_code"].astype(np.int8)
-time.time() - ts
-
-
-# In[35]:
-
-
-matrix.head()
-
-
-# In[36]:
-
-
-matrix.tail()
+print("time cost:", time.time() - ts)
 
 
 # ## Traget lags
-
-# In[46]:
+#
+# 即使資料去除前12個月，還是會有 NaN 出現，
+# 因為 lag_feature 是依照 "date_block_num", "shop_id", "item_id" 去合併的。
 
 
 def lag_feature(df, lags, col):
+    """
+    df(DataFrame)
+    lags(list)
+    col(string)
+    """
     tmp = df[["date_block_num", "shop_id", "item_id", col]]
     for i in lags:
         shifted = tmp.copy()
@@ -309,17 +214,14 @@ def lag_feature(df, lags, col):
     return df
 
 
-# In[47]:
-
-
 ts = time.time()
-matrix = lag_feature(matrix, [1, 2, 3, 6, 12], "item_cnt_month")
-time.time() - ts
+matrix = lag_feature(matrix, [1, 2, 3], "item_cnt_month")
+print("time cost:", time.time() - ts)
 
 
 # ## Mean encoded features
 
-# In[48]:
+# date_avg_item_cnt: 對每個月的物品銷量做平均
 
 
 ts = time.time()
@@ -331,16 +233,10 @@ matrix = pd.merge(matrix, group, on=["date_block_num"], how="left")
 matrix["date_avg_item_cnt"] = matrix["date_avg_item_cnt"].astype(np.float16)
 matrix = lag_feature(matrix, [1], "date_avg_item_cnt")
 matrix.drop(["date_avg_item_cnt"], axis=1, inplace=True)
-time.time() - ts
+print("time cost:", time.time() - ts)
 
 
-# In[49]:
-
-
-matrix[(matrix["date_block_num"] == 0) & (matrix["item_id"] == 19)].head()
-
-
-# In[50]:
+# date_item_avg_item_cnt: 對每個月的每個商品的銷量做平均
 
 
 ts = time.time()
@@ -350,12 +246,12 @@ group.reset_index(inplace=True)
 
 matrix = pd.merge(matrix, group, on=["date_block_num", "item_id"], how="left")
 matrix["date_item_avg_item_cnt"] = matrix["date_item_avg_item_cnt"].astype(np.float16)
-matrix = lag_feature(matrix, [1, 2, 3, 6, 12], "date_item_avg_item_cnt")
+matrix = lag_feature(matrix, [1, 2, 3], "date_item_avg_item_cnt")
 matrix.drop(["date_item_avg_item_cnt"], axis=1, inplace=True)
-time.time() - ts
+print("time cost:", time.time() - ts)
 
 
-# In[51]:
+# date_shop_avg_item_cnt: 對每個月的每個商店的銷量做平均
 
 
 ts = time.time()
@@ -365,12 +261,12 @@ group.reset_index(inplace=True)
 
 matrix = pd.merge(matrix, group, on=["date_block_num", "shop_id"], how="left")
 matrix["date_shop_avg_item_cnt"] = matrix["date_shop_avg_item_cnt"].astype(np.float16)
-matrix = lag_feature(matrix, [1, 2, 3, 6, 12], "date_shop_avg_item_cnt")
+matrix = lag_feature(matrix, [1, 2, 3], "date_shop_avg_item_cnt")
 matrix.drop(["date_shop_avg_item_cnt"], axis=1, inplace=True)
-time.time() - ts
+print("time cost:", time.time() - ts)
 
 
-# In[52]:
+# date_cat_avg_item_cnt: 對每個月的每個商品類別的銷量做平均
 
 
 ts = time.time()
@@ -384,10 +280,10 @@ matrix = pd.merge(matrix, group, on=["date_block_num", "item_category_id"], how=
 matrix["date_cat_avg_item_cnt"] = matrix["date_cat_avg_item_cnt"].astype(np.float16)
 matrix = lag_feature(matrix, [1], "date_cat_avg_item_cnt")
 matrix.drop(["date_cat_avg_item_cnt"], axis=1, inplace=True)
-time.time() - ts
+print("time cost:", time.time() - ts)
 
 
-# In[53]:
+# date_shop_cat_avg_item_cnt: 對每個月的每個商店的每個物品類別id的銷量做平均
 
 
 ts = time.time()
@@ -405,10 +301,10 @@ matrix["date_shop_cat_avg_item_cnt"] = matrix["date_shop_cat_avg_item_cnt"].asty
 )
 matrix = lag_feature(matrix, [1], "date_shop_cat_avg_item_cnt")
 matrix.drop(["date_shop_cat_avg_item_cnt"], axis=1, inplace=True)
-time.time() - ts
+print("time cost:", time.time() - ts)
 
 
-# In[54]:
+# date_shop_type_avg_item_cnt: 對每個月的每個商店的每個類別做平均
 
 
 ts = time.time()
@@ -426,10 +322,10 @@ matrix["date_shop_type_avg_item_cnt"] = matrix["date_shop_type_avg_item_cnt"].as
 )
 matrix = lag_feature(matrix, [1], "date_shop_type_avg_item_cnt")
 matrix.drop(["date_shop_type_avg_item_cnt"], axis=1, inplace=True)
-time.time() - ts
+print("time cost:", time.time() - ts)
 
 
-# In[55]:
+# date_shop_subtype_avg_item_cnt: 對每個月的每個商店的每個子類別做平均
 
 
 ts = time.time()
@@ -447,10 +343,10 @@ matrix["date_shop_subtype_avg_item_cnt"] = matrix[
 ].astype(np.float16)
 matrix = lag_feature(matrix, [1], "date_shop_subtype_avg_item_cnt")
 matrix.drop(["date_shop_subtype_avg_item_cnt"], axis=1, inplace=True)
-time.time() - ts
+print("time cost:", time.time() - ts)
 
 
-# In[56]:
+# date_city_avg_item_cnt: 對每個月的每個城市的銷量做平均
 
 
 ts = time.time()
@@ -464,10 +360,10 @@ matrix = pd.merge(matrix, group, on=["date_block_num", "city_code"], how="left")
 matrix["date_city_avg_item_cnt"] = matrix["date_city_avg_item_cnt"].astype(np.float16)
 matrix = lag_feature(matrix, [1], "date_city_avg_item_cnt")
 matrix.drop(["date_city_avg_item_cnt"], axis=1, inplace=True)
-time.time() - ts
+print("time cost:", time.time() - ts)
 
 
-# In[57]:
+# date_item_city_avg_item_cnt: 對每個月每個物品在每個城市的銷量做平均
 
 
 ts = time.time()
@@ -485,10 +381,10 @@ matrix["date_item_city_avg_item_cnt"] = matrix["date_item_city_avg_item_cnt"].as
 )
 matrix = lag_feature(matrix, [1], "date_item_city_avg_item_cnt")
 matrix.drop(["date_item_city_avg_item_cnt"], axis=1, inplace=True)
-time.time() - ts
+print("time cost:", time.time() - ts)
 
 
-# In[58]:
+# date_type_avg_item_cnt: 對每個月每個類別的銷量做平均
 
 
 ts = time.time()
@@ -502,10 +398,10 @@ matrix = pd.merge(matrix, group, on=["date_block_num", "type_code"], how="left")
 matrix["date_type_avg_item_cnt"] = matrix["date_type_avg_item_cnt"].astype(np.float16)
 matrix = lag_feature(matrix, [1], "date_type_avg_item_cnt")
 matrix.drop(["date_type_avg_item_cnt"], axis=1, inplace=True)
-time.time() - ts
+print("time cost:", time.time() - ts)
 
 
-# In[59]:
+# date_subtype_avg_item_cnt: 對每個月每個子類別的銷量做平均
 
 
 ts = time.time()
@@ -521,25 +417,27 @@ matrix["date_subtype_avg_item_cnt"] = matrix["date_subtype_avg_item_cnt"].astype
 )
 matrix = lag_feature(matrix, [1], "date_subtype_avg_item_cnt")
 matrix.drop(["date_subtype_avg_item_cnt"], axis=1, inplace=True)
-time.time() - ts
+print("time cost:", time.time() - ts)
 
 
 # ## Trend features
 
 # Price trend for the last six months.
-
-# In[60]:
+#
+# delta_price_lag: 跟過去六個月跟整體平均價是上升還是下降(但第一個月若是下降就直接回傳下降，即使2~6都是上升)
 
 
 ts = time.time()
-group = train.groupby(["item_id"]).agg({"item_price": ["mean"]})
+group = train.groupby(["item_id"]).agg({"item_price": ["mean"]})  # 每個物品的平均價格
 group.columns = ["item_avg_item_price"]
 group.reset_index(inplace=True)
 
 matrix = pd.merge(matrix, group, on=["item_id"], how="left")
 matrix["item_avg_item_price"] = matrix["item_avg_item_price"].astype(np.float16)
 
-group = train.groupby(["date_block_num", "item_id"]).agg({"item_price": ["mean"]})
+group = train.groupby(["date_block_num", "item_id"]).agg(
+    {"item_price": ["mean"]}
+)  # 每個月每個物品的平均價格
 group.columns = ["date_item_avg_item_price"]
 group.reset_index(inplace=True)
 
@@ -548,10 +446,10 @@ matrix["date_item_avg_item_price"] = matrix["date_item_avg_item_price"].astype(
     np.float16
 )
 
-lags = [1, 2, 3, 4, 5, 6]
-matrix = lag_feature(matrix, lags, "date_item_avg_item_price")
+lags = [1, 2, 3]
+matrix = lag_feature(matrix, lags, "date_item_avg_item_price")  # 過去每個月每個物品的平均價格
 
-for i in lags:
+for i in lags:  # 總體平均價格 與 上n月的平均價格 的比率
     matrix["delta_price_lag_" + str(i)] = (
         matrix["date_item_avg_item_price_lag_" + str(i)] - matrix["item_avg_item_price"]
     ) / matrix["item_avg_item_price"]
@@ -579,53 +477,49 @@ for i in lags:
 
 matrix.drop(fetures_to_drop, axis=1, inplace=True)
 
-time.time() - ts
+print("time cost:", time.time() - ts)
 
 
 # Last month shop revenue trend
 
-# In[61]:
-
 
 ts = time.time()
-group = train.groupby(["date_block_num", "shop_id"]).agg({"revenue": ["sum"]})
+group = train.groupby(["date_block_num", "shop_id"]).agg(
+    {"revenue": ["sum"]}
+)  # 每個月每個商店的銷售額
 group.columns = ["date_shop_revenue"]
 group.reset_index(inplace=True)
 
 matrix = pd.merge(matrix, group, on=["date_block_num", "shop_id"], how="left")
 matrix["date_shop_revenue"] = matrix["date_shop_revenue"].astype(np.float32)
 
-group = group.groupby(["shop_id"]).agg({"date_shop_revenue": ["mean"]})
+group = group.groupby(["shop_id"]).agg({"date_shop_revenue": ["mean"]})  # 每個商店的平均銷售額
 group.columns = ["shop_avg_revenue"]
 group.reset_index(inplace=True)
 
 matrix = pd.merge(matrix, group, on=["shop_id"], how="left")
 matrix["shop_avg_revenue"] = matrix["shop_avg_revenue"].astype(np.float32)
 
-matrix["delta_revenue"] = (
+matrix["delta_revenue"] = (  # 商店的平均銷售額 與 每個月每個商店的銷售額 的比率
     matrix["date_shop_revenue"] - matrix["shop_avg_revenue"]
 ) / matrix["shop_avg_revenue"]
 matrix["delta_revenue"] = matrix["delta_revenue"].astype(np.float16)
 
-matrix = lag_feature(matrix, [1], "delta_revenue")
+matrix = lag_feature(matrix, [1], "delta_revenue")  # 上個月 商店的平均銷售額 與 每個月每個商店的銷售額 的比率
 
 matrix.drop(
     ["date_shop_revenue", "shop_avg_revenue", "delta_revenue"], axis=1, inplace=True
 )
-time.time() - ts
+print("time cost:", time.time() - ts)
 
 
 # ## Special features
-
-# In[62]:
 
 
 matrix["month"] = matrix["date_block_num"] % 12
 
 
 # Number of days in a month. There are no leap years.
-
-# In[63]:
 
 
 days = pd.Series([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])
@@ -634,9 +528,12 @@ matrix["days"] = matrix["month"].map(days).astype(np.int8)
 
 # Months since the last sale for each shop/item pair and for item only. I use programing approach.
 #
-# <i>Create HashTable with key equals to {shop_id,item_id} and value equals to date_block_num. Iterate data from the top. Foreach row if {row.shop_id,row.item_id} is not present in the table, then add it to the table and set its value to row.date_block_num. if HashTable contains key, then calculate the difference beteween cached value and row.date_block_num.</i>
+# Create HashTable with key equals to {shop_id,item_id} and value equals to date_block_num.
+# Iterate data from the top.
+# Foreach row if {row.shop_id,row.item_id} is not present in the table,then add it to the table and set its value to row.date_block_num.
+# if HashTable contains key, then calculate the difference beteween cached value and row.date_block_num.
 
-# In[64]:
+# item_shop_last_sale: 距離這個商品在這個商店上次賣出過了多久
 
 
 ts = time.time()
@@ -652,10 +549,10 @@ for idx, row in matrix.iterrows():
         last_date_block_num = cache[key]
         matrix.at[idx, "item_shop_last_sale"] = row.date_block_num - last_date_block_num
         cache[key] = row.date_block_num
-time.time() - ts
+print("time cost:", time.time() - ts)
 
 
-# In[65]:
+# item_last_sale: 距離這個商品上次賣出過了多久
 
 
 ts = time.time()
@@ -672,12 +569,10 @@ for idx, row in matrix.iterrows():
         if row.date_block_num > last_date_block_num:
             matrix.at[idx, "item_last_sale"] = row.date_block_num - last_date_block_num
             cache[key] = row.date_block_num
-time.time() - ts
+print("time cost:", time.time() - ts)
 
 
 # Months since the first sale for each shop/item pair and for item only.
-
-# In[66]:
 
 
 ts = time.time()
@@ -687,23 +582,19 @@ matrix["item_shop_first_sale"] = matrix["date_block_num"] - matrix.groupby(
 matrix["item_first_sale"] = matrix["date_block_num"] - matrix.groupby("item_id")[
     "date_block_num"
 ].transform("min")
-time.time() - ts
+print("time cost:", time.time() - ts)
 
 
 # ## Final preparations
 # Because of the using 12 as lag value drop first 12 months. Also drop all the columns with this month calculated values (other words which can not be calcucated for the test set).
 
-# In[67]:
-
 
 ts = time.time()
-matrix = matrix[matrix.date_block_num > 11]
-time.time() - ts
+matrix = matrix[matrix.date_block_num > 2]
+print("time cost:", time.time() - ts)
 
 
 # Producing lags brings a lot of nulls.
-
-# In[68]:
 
 
 ts = time.time()
@@ -718,31 +609,6 @@ def fill_na(df):
 
 
 matrix = fill_na(matrix)
-time.time() - ts
+print("time cost:", time.time() - ts)
 
-
-# In[69]:
-
-
-matrix.columns
-
-
-# In[70]:
-
-
-matrix.info()
-
-
-# In[71]:
-
-
-matrix.to_pickle("data.pkl")
-del matrix
-del cache
-del group
-del items
-del shops
-del cats
-del train
-# leave test for submission
-gc.collect()
+matrix.to_pickle("./data_3month.pkl")
