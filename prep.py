@@ -34,15 +34,15 @@ import random
 random.seed(0)
 np.random.seed(0)
 
-sys.version_info
+start_time = time.time()
 
 
-items = pd.read_csv("../input/items.csv")
-shops = pd.read_csv("../input/shops.csv")
-cats = pd.read_csv("../input/item_categories.csv")
-train = pd.read_csv("../input/sales_train.csv")
+items = pd.read_csv("./input/items.csv")
+shops = pd.read_csv("./input/shops.csv")
+cats = pd.read_csv("./input/item_categories.csv")
+train = pd.read_csv("./input/sales_train.csv")
 # set index to ID to avoid droping it later
-test = pd.read_csv("../input/test.csv").set_index("ID")
+test = pd.read_csv("./input/test.csv").set_index("ID")
 
 
 # ## Outliers
@@ -612,3 +612,5 @@ matrix = fill_na(matrix)
 print("time cost:", time.time() - ts)
 
 matrix.to_pickle("./data_3month.pkl")
+
+print("--- {:6.2f} minutes ---".format((time.time() - start_time) / 60))

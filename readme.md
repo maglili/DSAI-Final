@@ -3,7 +3,7 @@
 ## Intro
 
 本題目為 [Kaggle - Predict Future Sales](https://www.kaggle.com/c/competitive-data-science-predict-future-sales)。
-執行前請先將比賽的 data 放到 data/ 資料夾中。
+執行前請先將比賽的 data 放到 input/ 資料夾中。
 
 ## Usage
 
@@ -21,8 +21,6 @@ python prep.py
 python main.py
 ```
 
-Level 1 model: XGBRegressor * 5
+Level 1 model: XGBoost, LightGBM
 
-Level 2 model: torch Linear layer
-
-
+Level 2 model: XGBoost

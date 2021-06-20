@@ -19,9 +19,9 @@ from xgboost import XGBRegressor
 from xgboost import plot_importance
 
 
-def plot_features(booster, figsize):
-    fig, ax = plt.subplots(1, 1, figsize=figsize)
-    return plot_importance(booster=booster, ax=ax)
+# def plot_features(booster, figsize):
+#     fig, ax = plt.subplots(1, 1, figsize=figsize)
+#     return plot_importance(booster=booster, ax=ax)
 
 
 import time
@@ -33,72 +33,22 @@ import random
 random.seed(0)
 np.random.seed(0)
 
-sys.version_info
+start_time = time.time()
 
 # items = pd.read_csv("../input/items.csv")
 # shops = pd.read_csv("../input/shops.csv")
 # cats = pd.read_csv("../input/item_categories.csv")
 # train = pd.read_csv("../input/sales_train.csv")
 # # set index to ID to avoid droping it later
-test = pd.read_csv("../input/test.csv").set_index("ID")
+test = pd.read_csv("./input/test.csv").set_index("ID")
 
 
 # # Part 2, xgboost
 
-
 # data = pd.read_pickle("../data.pkl")
 data = pd.read_pickle("./data_3month.pkl")
 
-# Select perfect features
-
-
-# data = data[
-#     [
-#         "date_block_num",
-#         "shop_id",
-#         "item_id",
-#         "item_cnt_month",
-#         "city_code",
-#         "item_category_id",
-#         "type_code",
-#         "subtype_code",
-#         "item_cnt_month_lag_1",
-#         "item_cnt_month_lag_2",
-#         "item_cnt_month_lag_3",
-#         "item_cnt_month_lag_6",
-#         "item_cnt_month_lag_12",
-#         "date_avg_item_cnt_lag_1",
-#         "date_item_avg_item_cnt_lag_1",
-#         "date_item_avg_item_cnt_lag_2",
-#         "date_item_avg_item_cnt_lag_3",
-#         "date_item_avg_item_cnt_lag_6",
-#         "date_item_avg_item_cnt_lag_12",
-#         "date_shop_avg_item_cnt_lag_1",
-#         "date_shop_avg_item_cnt_lag_2",
-#         "date_shop_avg_item_cnt_lag_3",
-#         "date_shop_avg_item_cnt_lag_6",
-#         "date_shop_avg_item_cnt_lag_12",
-#         "date_cat_avg_item_cnt_lag_1",
-#         "date_shop_cat_avg_item_cnt_lag_1",
-#         #'date_shop_type_avg_item_cnt_lag_1',
-#         #'date_shop_subtype_avg_item_cnt_lag_1',
-#         "date_city_avg_item_cnt_lag_1",
-#         "date_item_city_avg_item_cnt_lag_1",
-#         #'date_type_avg_item_cnt_lag_1',
-#         #'date_subtype_avg_item_cnt_lag_1',
-#         "delta_price_lag",
-#         "month",
-#         "days",
-#         "item_shop_last_sale",
-#         "item_last_sale",
-#         "item_shop_first_sale",
-#         "item_first_sale",
-#     ]
-# ]
-
-
 # ## remove shops that do not appear in test
-
 
 print("test shops:", len(data[data.date_block_num == 34].shop_id.unique()))
 a = data[data.date_block_num == 34].shop_id.unique()
@@ -148,7 +98,6 @@ print("hold out:", len(X_train) - split_num)
 
 # shuffle the train data
 
-
 X_train_s = X_train.sample(frac=1, random_state=0)
 
 X_train_l1 = X_train_s[:split_num]
@@ -178,15 +127,17 @@ model_1.fit(
     Y_train_l1,
     eval_metric="rmse",
     eval_set=[(X_train_l1, Y_train_l1), (X_valid, Y_valid)],
-    verbose=True,
+    verbose=10,
     early_stopping_rounds=20,
 )
 
-print("time cost:", time.time() - ts)
+print("time cost:", (time.time() - ts) / 60)
 
 # lightgbm
 
 import lightgbm as lgb
+
+ts = time.time()
 
 feature_name = X_train_l1.columns.tolist()
 
@@ -226,54 +177,23 @@ gbm = lgb.train(
     evals_result=evals_result,
     early_stopping_rounds=30,
 )
+print("time cost:", (time.time() - ts) / 60)
 
-
-# catboost
-
-
-from catboost import CatBoostRegressor
-
-catboost_model = CatBoostRegressor(
-    iterations=1000,
-    max_ctr_complexity=10,
-    random_seed=0,
-    od_type="Iter",
-    od_wait=30,
-    verbose=50,
-    depth=8,
-    thread_count=-1,
-)
-
-feature_name_indexes = [1, 2, 3, 4, 5, 6]
-
-catboost_model.fit(
-    X_train_l1,
-    Y_train_l1.astype(float),
-    cat_features=feature_name_indexes,
-    eval_set=(X_valid, Y_valid.astype(float)),
-)
-
+# ## pred
 
 Y_pred_1 = model_1.predict(X_train_l2)  # .clip(0, 20)
 Y_pred_2 = gbm.predict(X_train_l2)  # .clip(0, 20)
-Y_pred_3 = catboost_model.predict(X_train_l2)  # .clip(0, 20)
 
 Y_valid_1 = model_1.predict(X_valid)  # .clip(0, 20)
 Y_valid_2 = gbm.predict(X_valid)  # .clip(0, 20)
-Y_valid_3 = catboost_model.predict(X_valid)  # .clip(0, 20)
 
 Y_test_1 = model_1.predict(X_test)  # .clip(0, 20)
 Y_test_2 = gbm.predict(X_test)  # .clip(0, 20)
-Y_test_3 = catboost_model.predict(X_test)  # .clip(0, 20)
+
 
 # # leavel 2
 
 # ## data
-
-
-# X_train_l2_fea = np.stack((Y_pred_1, Y_pred_2, Y_pred_3), axis=-1)
-# X_val_l2_fea = np.stack((Y_valid_1, Y_valid_2, Y_valid_3), axis=-1)
-# X_test_l2_fea = np.stack((Y_test_1, Y_test_2, Y_test_3), axis=-1)
 
 X_train_l2_fea = np.stack((Y_pred_1, Y_pred_2), axis=-1)
 X_val_l2_fea = np.stack((Y_valid_1, Y_valid_2), axis=-1)
@@ -289,14 +209,12 @@ import xgboost as xgb
 
 ts = time.time()
 
-
 # def learning_rate_decay(boosting_round, num_boost_round):
 #     learning_rate_start = 0.1
 #     learning_rate_min = 0.0009
 #     lr_decay = 0.96
 #     lr = learning_rate_start * np.power(lr_decay, boosting_round)
 #     return max(learning_rate_min, lr)
-
 
 model_l2 = XGBRegressor(
     max_depth=10,
@@ -315,17 +233,15 @@ model_l2.fit(
     eval_metric="rmse",
     eval_set=[(X_train_l2_fea, Y_train_l2), (X_val_l2_fea, Y_valid)],
     verbose=50,
-    early_stopping_rounds=30,
+    early_stopping_rounds=10,
     # callbacks=[xgb.callback.reset_learning_rate(learning_rate_decay)],
 )
-
 print("time cost:", time.time() - ts)
-
-
-plot_features(model_l2, (10, 14))
 
 
 Y_test_l2_fea = model_l2.predict(X_test_l2_fea).clip(0, 20)
 submission = pd.DataFrame({"ID": test.index, "item_cnt_month": Y_test_l2_fea})
-submission.to_csv("./submission.csv", index=False)
+submission.to_csv("./submission_light.csv", index=False)
 submission.head(20)
+
+print("--- {:6.2f} minutes ---".format((time.time() - start_time) / 60))
