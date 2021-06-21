@@ -1,7 +1,3 @@
 *.pickle
 *.pkl
-*.csv
-submission/
-ipynb/
-notebooks/
-*.ipynb
+input/
