@@ -97,7 +97,6 @@ print("hold out:", len(X_train) - split_num)
 
 
 # shuffle the train data
-
 X_train_s = X_train.sample(frac=1, random_state=0)
 
 X_train_l1 = X_train_s[:split_num]
@@ -219,7 +218,7 @@ ts = time.time()
 model_l2 = XGBRegressor(
     max_depth=10,
     n_estimators=1200,
-    min_child_weight=0.3,
+    min_child_weight=300,
     colsample_bytree=0.8,
     subsample=0.8,
     eta=0.002,

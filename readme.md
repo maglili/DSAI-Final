@@ -1,5 +1,9 @@
 # DSAI - HW4
 
+## Report
+
+PowerPoint: [link](https://1drv.ms/p/s!AlsGDFPDXfPAhjXEEaLUd2lhqQA7)
+
 ## Intro
 
 本題目為 [Kaggle - Predict Future Sales](https://www.kaggle.com/c/competitive-data-science-predict-future-sales)。
